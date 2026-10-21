@@ -1,0 +1,2 @@
+# Este archivo le dice a GitHub Pages que NO procese el sitio con Jekyll.
+# Sin él, GitHub ignoraría cualquier carpeta o archivo que empiece por guion bajo.

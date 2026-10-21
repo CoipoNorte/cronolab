@@ -1,0 +1,25 @@
+# Normalización de saltos de línea
+* text=auto eol=lf
+
+# Windows necesita CRLF en los .bat o el 'goto' puede fallar
+*.bat text eol=crlf
+*.cmd text eol=crlf
+*.ps1 text eol=crlf
+
+# Scripts de shell siempre con LF
+*.sh  text eol=lf
+*.mjs text eol=lf
+
+# Binarios: no tocar
+*.png  binary
+*.jpg  binary
+*.jpeg binary
+*.gif  binary
+*.ico  binary
+*.woff binary
+*.woff2 binary
+*.zip  binary
+
+# GitHub: no contar estos archivos en las estadísticas de lenguajes
+dist/*       linguist-generated
+package-lock.json linguist-generated
