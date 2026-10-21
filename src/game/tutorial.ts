@@ -1,0 +1,488 @@
+/* ============================================================
+   PROYECTO GUIADO — "CRONO JUMP": un clon de Mario con
+   meteoritos que caen del cielo.
+
+   Este motor es ESPECIAL: acepta un número de PASO y activa
+   solo las funciones programadas hasta ese punto del tutorial.
+   Paso 1 = lienzo vacío. Paso 8 = juego completo.
+   ============================================================ */
+
+import type { Hud, Mini, MiniInput } from "./minis";
+import { drawPixels, heroSprite, HERO_PALETTE, HERO_W, HERO_H } from "./sprites";
+import { sfx } from "./engine";
+
+export const VW = 480;
+export const VH = 270;
+export const GY = 216;          // altura del suelo
+export const WORLD = 1960;      // ancho total del nivel
+export const FLAG_X = WORLD - 90;
+
+type Ctx = CanvasRenderingContext2D;
+
+/* ---------- qué está activo en cada paso ---------- */
+export interface Features {
+  hero: boolean;
+  jump: boolean;
+  obstacles: boolean;
+  coins: boolean;
+  meteors: boolean;
+  damage: boolean;
+  polish: boolean;
+}
+
+export function featuresForStep(step: number): Features {
+  return {
+    hero: step >= 2,
+    jump: step >= 3,
+    obstacles: step >= 4,
+    coins: step >= 5,
+    meteors: step >= 6,
+    damage: step >= 7,
+    polish: step >= 8,
+  };
+}
+
+/* ---------- tipos del mundo ---------- */
+interface Box { x: number; y: number; w: number; h: number; kind: "bloque" | "pincho" }
+interface Coin { x: number; y: number; taken: boolean; ph: number }
+interface Meteor { x: number; y: number; vy: number }
+interface Warning { x: number; t: number }
+interface Part { x: number; y: number; vx: number; vy: number; life: number; max: number; color: string; size: number; text?: string }
+
+const clamp = (v: number, a: number, b: number) => Math.max(a, Math.min(b, v));
+const hash = (i: number) => { const s = Math.sin(i * 127.1 + 311.7) * 43758.5453; return s - Math.floor(s); };
+
+/* ---------- EL NIVEL (datos, no código) ---------- */
+function buildBoxes(): Box[] {
+  const b: Box[] = [];
+  // bloques de ladrillo para saltar
+  const blocks: [number, number][] = [
+    [300, 1], [330, 1], [430, 2], [620, 1], [650, 2], [680, 1],
+    [900, 1], [1080, 2], [1110, 1], [1320, 1], [1350, 2], [1540, 1], [1700, 2],
+  ];
+  for (const [x, alto] of blocks) b.push({ x, y: GY - 24 * alto, w: 30, h: 24 * alto, kind: "bloque" });
+  // plataformas flotantes (para monedas altas)
+  for (const x of [520, 980, 1450]) b.push({ x, y: GY - 76, w: 64, h: 12, kind: "bloque" });
+  // pinchos en el suelo
+  for (const x of [760, 1200, 1620]) b.push({ x, y: GY - 12, w: 34, h: 12, kind: "pincho" });
+  return b;
+}
+
+function buildCoins(): Coin[] {
+  const c: Coin[] = [];
+  const add = (x: number, y: number) => c.push({ x, y, taken: false, ph: c.length });
+  // monedas sobre el suelo
+  for (const x of [200, 230, 380, 860, 1260, 1290, 1860]) add(x, GY - 22);
+  // arcos de monedas sobre los bloques
+  for (const x of [430, 650, 1080, 1350, 1700]) { add(x + 15, GY - 70); add(x - 15, GY - 56); add(x + 45, GY - 56); }
+  // monedas sobre las plataformas flotantes
+  for (const x of [520, 980, 1450]) { add(x + 12, GY - 96); add(x + 36, GY - 96); }
+  return c;
+}
+
+export function createTutorialGame(step: number): Mini {
+  const F = featuresForStep(step);
+
+  /* ---------- estado ---------- */
+  let hero = { x: 60, y: GY, vx: 0, vy: 0, face: 1 as 1 | -1, onGround: true, animT: 0, moving: false };
+  let camX = 0, t = 0, score = 0, lives = 3, invT = 0, shake = 0;
+  let won = false, over = false;
+  let boxes = buildBoxes();
+  let coins = buildCoins();
+  let meteors: Meteor[] = [];
+  let warns: Warning[] = [];
+  let parts: Part[] = [];
+  let spawnT = 1.6;
+  let jumpBuf = 0;
+
+  const reset = () => {
+    hero = { x: 60, y: GY, vx: 0, vy: 0, face: 1, onGround: true, animT: 0, moving: false };
+    camX = 0; t = 0; score = 0; lives = 3; invT = 0; shake = 0;
+    won = false; over = false;
+    boxes = buildBoxes(); coins = buildCoins();
+    meteors = []; warns = []; parts = []; spawnT = 1.6; jumpBuf = 0;
+  };
+
+  const burst = (x: number, y: number, colors: string[], n: number, pow = 70) => {
+    if (!F.polish) return;
+    for (let i = 0; i < n; i++) {
+      const a = Math.random() * Math.PI * 2;
+      const sp = (0.3 + Math.random() * 0.7) * pow;
+      parts.push({ x, y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp - pow * 0.4, life: 0.4 + Math.random() * 0.4, max: 0.8, color: colors[i % colors.length], size: 1 + Math.floor(Math.random() * 2) });
+    }
+  };
+  const floatText = (x: number, y: number, text: string, color: string) => {
+    if (!F.polish) return;
+    parts.push({ x, y, vx: 0, vy: -26, life: 1, max: 1, color, size: 0, text });
+  };
+
+  const hurt = () => {
+    if (invT > 0 || !F.damage) return;
+    lives--;
+    invT = 1.4;
+    shake = 7;
+    hero.vy = -170;
+    hero.onGround = false;
+    burst(hero.x, hero.y - 10, ["#ff5d73", "#ffffff"], 12, 80);
+    sfx.hurt();
+    if (lives <= 0) { over = true; sfx.hurt(); }
+  };
+
+  /* ---------- colisión AABB contra la lista de cajas ---------- */
+  const solidsAt = (hx: number, hy: number) => {
+    // caja del héroe: 10 de ancho, 18 de alto, con los pies en hy
+    const l = hx - 5, r = hx + 5, top = hy - HERO_H, bot = hy;
+    return boxes.filter((b) => b.kind === "bloque" && l < b.x + b.w && r > b.x && top < b.y + b.h && bot > b.y);
+  };
+
+  return {
+    update(dt: number, inp: MiniInput) {
+      if (inp.reset) { reset(); return; }
+      t += dt;
+      if (shake > 0) shake = Math.max(0, shake - dt * 14);
+      if (invT > 0) invT -= dt;
+
+      /* partículas (siempre que existan) */
+      for (const p of parts) {
+        if (!p.text) p.vy += 300 * dt;
+        p.x += p.vx * dt; p.y += p.vy * dt; p.life -= dt;
+      }
+      parts = parts.filter((p) => p.life > 0);
+
+      if (over || won) {
+        camX += (clamp(hero.x - VW * 0.42, 0, WORLD - VW) - camX) * (1 - Math.exp(-6 * dt));
+        return;
+      }
+
+      /* ---------- PASO 2: movimiento horizontal ---------- */
+      if (F.hero) {
+        const dir = (inp.right ? 1 : 0) - (inp.left ? 1 : 0);
+        hero.vx += (dir * 140 - hero.vx) * Math.min(1, dt * 12);
+        if (dir !== 0) hero.face = dir as 1 | -1;
+        hero.moving = Math.abs(hero.vx) > 14;
+        hero.animT += dt * (hero.moving ? Math.abs(hero.vx) / 22 + 4 : 2.5);
+
+        /* ---------- PASO 3: gravedad y salto ---------- */
+        if (F.jump) {
+          if (inp.jump) jumpBuf = 0.12;
+          if (jumpBuf > 0) jumpBuf -= dt;
+          if (jumpBuf > 0 && hero.onGround) {
+            hero.vy = -345;
+            hero.onGround = false;
+            jumpBuf = 0;
+            sfx.jump();
+            burst(hero.x, hero.y, ["#d9c6a5"], 5, 36);
+          }
+          hero.vy = Math.min(hero.vy + 980 * dt, 560);
+        }
+
+        /* mover X y resolver contra bloques */
+        const nx = hero.x + hero.vx * dt;
+        if (F.obstacles && solidsAt(nx, hero.y).length) {
+          const b = solidsAt(nx, hero.y)[0];
+          hero.x = hero.vx > 0 ? b.x - 5.01 : b.x + b.w + 5.01;
+          hero.vx = 0;
+        } else hero.x = nx;
+
+        /* mover Y y resolver contra bloques + suelo */
+        if (F.jump) {
+          const ny = hero.y + hero.vy * dt;
+          const hits = F.obstacles ? solidsAt(hero.x, ny) : [];
+          if (hits.length) {
+            const b = hits[0];
+            if (hero.vy > 0) { hero.y = b.y; hero.vy = 0; hero.onGround = true; }
+            else { hero.y = b.y + b.h + HERO_H; hero.vy = 0; }
+          } else {
+            hero.y = ny;
+            hero.onGround = false;
+          }
+          if (hero.y >= GY) { hero.y = GY; hero.vy = 0; hero.onGround = true; }
+        }
+        hero.x = clamp(hero.x, 10, WORLD - 10);
+
+        /* ---------- PASO 4: pinchos ---------- */
+        if (F.obstacles && F.damage) {
+          for (const b of boxes) {
+            if (b.kind !== "pincho") continue;
+            if (hero.x + 5 > b.x && hero.x - 5 < b.x + b.w && hero.y > b.y && hero.y - HERO_H < b.y + b.h) {
+              const away = hero.x < b.x + b.w / 2 ? -1 : 1;
+              hero.vx = 150 * away;
+              hurt();
+            }
+          }
+        }
+
+        /* ---------- PASO 5: monedas ---------- */
+        if (F.coins) {
+          for (const c of coins) {
+            if (c.taken) continue;
+            const cy = c.y + Math.sin(t * 2.2 + c.ph) * 2;
+            if (Math.abs(c.x - hero.x) < 11 && cy > hero.y - 22 && cy < hero.y + 6) {
+              c.taken = true;
+              score += 10;
+              burst(c.x, cy, ["#ffd23f", "#fff3a3", "#ffffff"], 8, 60);
+              floatText(c.x, cy - 8, "+10", "#ffd23f");
+              sfx.coin();
+            }
+          }
+        }
+
+        /* meta */
+        if (hero.x >= FLAG_X) {
+          won = true;
+          burst(FLAG_X, GY - 40, ["#ffd23f", "#4ade80", "#7c6bff"], 46, 130);
+          sfx.win();
+        }
+      }
+
+      /* ---------- PASO 6: meteoritos que caen ---------- */
+      if (F.meteors) {
+        spawnT -= dt;
+        if (spawnT <= 0) {
+          // aparecen cerca del jugador, con AVISO previo (telegrafiado)
+          const wx = clamp(hero.x + (Math.random() * 300 - 120), 30, WORLD - 30);
+          warns.push({ x: wx, t: 0.85 });
+          spawnT = Math.max(0.55, 1.7 - t * 0.012);
+        }
+        for (const w of warns) w.t -= dt;
+        for (const w of warns) {
+          if (w.t <= 0) meteors.push({ x: w.x, y: -14, vy: 150 });
+        }
+        warns = warns.filter((w) => w.t > 0);
+
+        for (const m of meteors) {
+          m.vy += 420 * dt;
+          m.y += m.vy * dt;
+          /* choque con el héroe */
+          if (F.damage && Math.abs(m.x - hero.x) < 10 && m.y > hero.y - HERO_H - 4 && m.y < hero.y + 2) {
+            m.y = 9999;
+            hurt();
+          }
+          /* impacto en el suelo */
+          if (m.y >= GY && m.y < 9000) {
+            m.y = 9999;
+            burst(m.x, GY - 2, ["#ff7847", "#ffd23f", "#8a5a3b"], 10, 70);
+            if (F.polish) shake = Math.max(shake, 3);
+          }
+        }
+        meteors = meteors.filter((m) => m.y < 9000);
+      }
+
+      /* ---------- PASO 7: caída fuera de cámara / vidas ---------- */
+      if (F.damage && lives <= 0) over = true;
+
+      /* cámara con lerp */
+      camX += (clamp(hero.x - VW * 0.42, 0, WORLD - VW) - camX) * (1 - Math.exp(-6 * dt));
+    },
+
+    draw(ctx: Ctx) {
+      const sx = F.polish && shake > 0 ? (Math.random() - 0.5) * shake : 0;
+      const sy = F.polish && shake > 0 ? (Math.random() - 0.5) * shake : 0;
+      ctx.save();
+      ctx.translate(sx, sy);
+
+      /* ---------- PASO 1: cielo + decorado ---------- */
+      const grad = ctx.createLinearGradient(0, 0, 0, VH);
+      grad.addColorStop(0, "#4f8fd6");
+      grad.addColorStop(0.6, "#8fcdf0");
+      grad.addColorStop(1, "#dff6fb");
+      ctx.fillStyle = grad;
+      ctx.fillRect(-10, -10, VW + 20, VH + 20);
+
+      // nubes (parallax lento)
+      const cloudOff = camX * 0.25;
+      for (let i = -1; i < 14; i++) {
+        const cx = i * 170 - (cloudOff % 170) + hash(i * 7) * 60;
+        const cy = 20 + hash(i * 3) * 48;
+        ctx.fillStyle = "rgba(255,255,255,0.92)";
+        ctx.fillRect(cx, cy, 34, 7);
+        ctx.fillRect(cx + 8, cy - 5, 18, 5);
+        ctx.fillStyle = "rgba(190,220,240,0.5)";
+        ctx.fillRect(cx, cy + 6, 34, 2);
+      }
+      // colinas (parallax medio)
+      const hillOff = camX * 0.5;
+      for (let i = -1; i < 16; i++) {
+        const hx = i * 150 - (hillOff % 150);
+        ctx.fillStyle = i % 2 === 0 ? "#5da863" : "#4c9455";
+        ctx.beginPath();
+        ctx.arc(hx, GY + 12, 62, Math.PI, 0);
+        ctx.fill();
+      }
+
+      /* suelo */
+      ctx.fillStyle = "#8a5a3b";
+      ctx.fillRect(-10, GY + 6, VW + 20, VH - GY);
+      ctx.fillStyle = "#4fae52";
+      ctx.fillRect(-10, GY, VW + 20, 6);
+      ctx.fillStyle = "#7ed37a";
+      ctx.fillRect(-10, GY, VW + 20, 1);
+      const start = Math.floor(camX / 16) * 16;
+      for (let wx = start; wx < camX + VW + 16; wx += 16) {
+        const dx = wx - camX;
+        const hh = hash(wx / 16);
+        ctx.fillStyle = "#6f4429";
+        ctx.fillRect(dx + 3 + Math.floor(hh * 8), GY + 11 + Math.floor(hh * 9), 2, 2);
+        if (hh < 0.2) {
+          ctx.fillStyle = "#3e9c47";
+          ctx.fillRect(dx + 5, GY - 3, 1, 3);
+          ctx.fillRect(dx + 8, GY - 4, 1, 4);
+        }
+      }
+
+      /* ---------- PASO 4: obstáculos ---------- */
+      if (F.obstacles) {
+        for (const b of boxes) {
+          const bx = b.x - camX;
+          if (bx < -80 || bx > VW + 80) continue;
+          if (b.kind === "bloque") {
+            ctx.fillStyle = "#a55d3f";
+            ctx.fillRect(bx, b.y, b.w, b.h);
+            ctx.fillStyle = "#7c3f2a";
+            for (let yy = b.y + 7; yy < b.y + b.h; yy += 8) ctx.fillRect(bx, yy, b.w, 2);
+            ctx.fillStyle = "#c97d55";
+            ctx.fillRect(bx, b.y, b.w, 2);
+          } else {
+            ctx.fillStyle = "#8f9aa8";
+            for (let i = 0; i < b.w; i += 8) {
+              ctx.beginPath();
+              ctx.moveTo(bx + i, b.y + b.h);
+              ctx.lineTo(bx + i + 4, b.y);
+              ctx.lineTo(bx + i + 8, b.y + b.h);
+              ctx.fill();
+            }
+            ctx.fillStyle = "#6d7683";
+            ctx.fillRect(bx, b.y + b.h - 2, b.w, 2);
+          }
+        }
+        /* bandera de meta */
+        const fx = FLAG_X - camX;
+        if (fx > -40 && fx < VW + 40) {
+          ctx.fillStyle = "#7a4a2b";
+          ctx.fillRect(fx, GY - 52, 3, 52);
+          ctx.fillStyle = won ? "#4ade80" : "#ff5470";
+          const wv = Math.round(Math.sin(t * 5) * 2);
+          ctx.fillRect(fx + 3, GY - 51, 15, 5);
+          ctx.fillRect(fx + 3, GY - 46 + wv * 0.5, 11, 5);
+          ctx.fillRect(fx + 3, GY - 41 + wv, 7, 5);
+          ctx.fillStyle = "#ffd23f";
+          ctx.fillRect(fx - 1, GY - 55, 5, 4);
+        }
+      }
+
+      /* ---------- PASO 5: monedas ---------- */
+      if (F.coins) {
+        for (const c of coins) {
+          if (c.taken) continue;
+          const cx = c.x - camX;
+          if (cx < -20 || cx > VW + 20) continue;
+          const cy = c.y + Math.sin(t * 2.2 + c.ph) * 2;
+          const spin = Math.abs(Math.sin(t * 2.8 + c.ph));
+          const widths = [3, 5, 7, 8, 8, 8, 8, 7, 5, 3];
+          widths.forEach((w, r) => {
+            const ww = Math.max(1, Math.round(w * spin));
+            ctx.fillStyle = "#ffd23f";
+            ctx.fillRect(cx - ww / 2, cy + r - 5, ww, 1);
+          });
+          if (spin > 0.8) { ctx.fillStyle = "#c88a1d"; ctx.fillRect(cx - 1, cy - 2, 2, 6); }
+        }
+      }
+
+      /* ---------- PASO 6: avisos y meteoritos ---------- */
+      if (F.meteors) {
+        for (const w of warns) {
+          const wx = w.x - camX;
+          if (wx < -20 || wx > VW + 20) continue;
+          const blink = Math.floor(w.t * 12) % 2 === 0;
+          ctx.globalAlpha = 0.55;
+          ctx.fillStyle = blink ? "#ff5d73" : "#ffd23f";
+          ctx.fillRect(wx - 9, GY - 3, 18, 3);
+          ctx.globalAlpha = 1;
+          ctx.fillStyle = blink ? "#ff5d73" : "#ffd23f";
+          ctx.font = '8px "Press Start 2P", monospace';
+          ctx.textAlign = "center";
+          ctx.fillText("!", wx, 22);
+          ctx.fillRect(wx - 1, 26, 2, 8);
+        }
+        for (const m of meteors) {
+          const mx = m.x - camX;
+          if (mx < -20 || mx > VW + 20) continue;
+          // estela
+          ctx.fillStyle = "rgba(255,120,71,0.35)";
+          ctx.fillRect(mx - 2, m.y - 16, 4, 14);
+          ctx.fillStyle = "#ffd23f";
+          ctx.fillRect(mx - 4, m.y - 4, 8, 8);
+          ctx.fillStyle = "#ff7847";
+          ctx.fillRect(mx - 3, m.y - 3, 6, 6);
+          ctx.fillStyle = "#ffffff";
+          ctx.fillRect(mx - 1, m.y - 2, 2, 2);
+        }
+      }
+
+      /* ---------- PASO 2: el héroe ---------- */
+      if (F.hero) {
+        const hx = Math.round(hero.x - camX);
+        const hy = Math.round(hero.y);
+        ctx.fillStyle = "rgba(20,50,20,0.26)";
+        ctx.fillRect(hx - 7, GY + 2, 14, 2);
+        if (!(F.damage && invT > 0 && Math.floor(t * 14) % 2 === 0)) {
+          let st: "idle" | "runA" | "runB" | "jump" = "idle";
+          if (F.jump && !hero.onGround) st = "jump";
+          else if (hero.moving) st = Math.floor(hero.animT * 6) % 2 === 0 ? "runA" : "runB";
+          drawPixels(ctx, heroSprite(st), hx - HERO_W / 2, hy - HERO_H, HERO_PALETTE, hero.face < 0);
+        }
+      }
+
+      /* partículas */
+      for (const p of parts) {
+        ctx.globalAlpha = Math.max(0, p.life / p.max);
+        ctx.fillStyle = p.color;
+        if (p.text) {
+          ctx.font = '8px "Press Start 2P", monospace';
+          ctx.textAlign = "center";
+          ctx.fillText(p.text, p.x - camX, p.y);
+        } else ctx.fillRect(p.x - camX, p.y, p.size, p.size);
+        ctx.globalAlpha = 1;
+      }
+
+      /* ---------- carteles del paso 1 ---------- */
+      if (!F.hero) {
+        ctx.fillStyle = "rgba(11,14,26,0.82)";
+        ctx.fillRect(100, 108, VW - 200, 44);
+        ctx.fillStyle = "#ffd23f";
+        ctx.font = '8px "Press Start 2P", monospace';
+        ctx.textAlign = "center";
+        ctx.fillText("PASO 1: EL LIENZO VIVE", VW / 2, 128);
+        ctx.fillStyle = "#e9ecff";
+        ctx.font = '7px "Press Start 2P", monospace';
+        ctx.fillText("el bucle ya dibuja 60 veces/s", VW / 2, 144);
+      }
+
+      /* ---------- finales ---------- */
+      if (won || over) {
+        ctx.fillStyle = "rgba(7,9,18,0.6)";
+        ctx.fillRect(0, 0, VW, VH);
+        ctx.textAlign = "center";
+        ctx.fillStyle = won ? "#4ade80" : "#ff5d73";
+        ctx.font = '14px "Press Start 2P", monospace';
+        ctx.fillText(won ? "¡META!" : "GAME OVER", VW / 2, VH / 2 - 10);
+        ctx.fillStyle = "#ffd23f";
+        ctx.font = '8px "Press Start 2P", monospace';
+        ctx.fillText(`puntos: ${score}`, VW / 2, VH / 2 + 14);
+        ctx.fillStyle = "#e9ecff";
+        ctx.fillText("pulsa R para reintentar", VW / 2, VH / 2 + 34);
+      }
+
+      ctx.restore();
+    },
+
+    hud(): Hud {
+      const h: Hud = {};
+      if (F.coins) h.puntos = score;
+      if (F.damage) h.vidas = lives;
+      if (F.meteors) h.meteoros = meteors.length + warns.length;
+      h.estado = over ? "game over" : won ? "¡victoria!" : F.hero ? "jugando" : "solo dibujo";
+      return h;
+    },
+  };
+}
