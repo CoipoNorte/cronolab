@@ -4,7 +4,7 @@
 
 ### Aprende a programar videojuegos 2.5D jugando con ellos
 
-**Siete juegos jugables · dos editores · un tutorial de 8 pasos · puente a Unity — todo en una sola página web.**
+**Ocho juegos · dos editores · 13 micro-demos · narrativa · producción · sistemas avanzados · combate y balance · Unity y Godot.**
 
 [![Ver la web](https://img.shields.io/badge/▶_VER_LA_WEB-coiponorte.github.io/cronolab-ffd23f?style=for-the-badge)](https://coiponorte.github.io/cronolab/)
 [![Tutorial](https://img.shields.io/badge/🚀_TUTORIAL-paso_a_paso-4ade80?style=for-the-badge)](https://coiponorte.github.io/cronolab/#/tutorial)
@@ -33,7 +33,7 @@ real que lo mueve, explicado línea a línea y en lenguaje humano. Nada de teor�
 
 ## ✨ Qué incluye
 
-### 🎮 Siete juegos, todos jugables
+### 🎮 Ocho juegos y simuladores, todos interactivos
 
 | # | Juego | Lo que enseña |
 |---|-------|---------------|
@@ -43,7 +43,8 @@ real que lo mueve, explicado línea a línea y en lenguaje humano. Nada de teor�
 | 4 | **Arena de evasión** | hordas, IA mínima, combate tipo Mario, sistema de combos |
 | 5 | **Mundo RPG cenital** | movimiento en 4 direcciones, misiones, cambio de escena, guardado |
 | 6 | **Batalla ATB** | combate por turnos, barras ATB, menús, PM, críticos |
-| 7 | **Crono Jump** *(tutorial)* | un clon de Mario con meteoritos, construido en 8 pasos |
+| 7 | **Crono Jump** *(tutorial)* | clon de Mario con meteoritos, enemigos, power-ups y 3 niveles, en 14 pasos |
+| 8 | **Sala de depuración** | hitboxes, sensores, vectores, breakpoints y avance por fotograma |
 
 ### 🛠️ Dos editores en vivo
 
@@ -52,31 +53,95 @@ real que lo mueve, explicado línea a línea y en lenguaje humano. Nada de teor�
 - **Editor de niveles** — diseña tu tilemap con el ratón y pulsa *JUGAR* para probarlo en el acto.
   Exporta a JSON compatible con Tiled y Unity.
 
+### Laboratorios de producción
+
+- **13 mecánicas de game feel** — coyote time, salto variable, doble salto, buffer, dash, cámara con zona
+  muerta, hitstop, IA por estados, object pooling, power-ups y curvas de animación. Cada demo permite
+  activar/desactivar la técnica para comparar la misma escena.
+- **Taller narrativo ramificado** — editor de nodos, decisiones, condiciones, efectos, variables de prueba,
+  eventos, validación automática de rutas e importación/exportación JSON.
+- **Laboratorio de depuración** — pausa, avance fotograma a fotograma, cámara lenta, hitboxes, sensores,
+  vectores, IDs, puntos de contacto, inspector en vivo, registro de eventos y breakpoints de juego.
+- **Sistemas de producción** — mezclador de audio por canales, tres ranuras con migraciones, logros por
+  eventos, localización con plurales en tres idiomas y accesibilidad con movimiento reducido y modos de color.
+- **Sistemas avanzados** — generación procedural reproducible, controles reasignables con gamepad,
+  inventario/crafting/economía y replays deterministas con telemetría local.
+- **Combate y balance** — fórmula de daño explicable, resistencias elementales, estados apilables,
+  jefes por fases, simulación Monte Carlo de miles de batallas y botín ponderado.
+
 ### 🚀 Tutorial guiado: "Crono Jump"
 
-Una vista aparte con **8 pasos**, cada uno con su **demo jugable** que solo contiene lo programado hasta ahí:
+Una vista aparte con **14 pasos**, cada uno con su **demo jugable** que solo contiene lo programado hasta ahí:
 
-1. El lienzo y el bucle
-2. El héroe y el movimiento
-3. Gravedad y salto
-4. Obstáculos: bloques, plataformas y pinchos
-5. Monedas y puntuación
-6. **Proyectiles que caen** (con aviso previo)
-7. Daño, vidas e invulnerabilidad
-8. Pulido: partículas, temblor, sonido y victoria
+| # | Paso | Sistema que enseña |
+|---|------|--------------------|
+| 1 | El lienzo y el bucle | canvas, delta time, separar update y draw |
+| 2 | El héroe y el movimiento | entrada, inercia, cámara con lerp |
+| 3 | Gravedad y salto | integración, buffer de salto |
+| 4 | Obstáculos | AABB, resolver X e Y por separado |
+| 5 | Monedas y puntuación | recolección, feedback, falso 3D |
+| 6 | **Proyectiles que caen** | spawner, aviso previo, dificultad creciente |
+| 7 | Daño, vidas e invulnerabilidad | temporizadores, parpadeo, game over |
+| 8 | Pulido: jugo | partículas, temblor, sonido, victoria |
+| 9 | **Enemigos y combos** | patrulla, pisotón, multiplicador con tiempo |
+| 10 | **Power-ups temporales** | escudo que absorbe daño, imán que atrae monedas |
+| 11 | **Checkpoints** | punto de reaparición, perder sin frustrarse |
+| 12 | **Menú de pausa** | congelar el mundo, navegación, latch de teclas |
+| 13 | **Varios niveles** | reiniciar el mundo sin reiniciar la partida |
+| 14 | **Récord guardado** | localStorage con try/catch, persistencia real |
 
-Al terminar puedes **descargar el juego completo en un `.html` de 17 KB** que funciona con doble clic,
+Al terminar puedes **descargar el juego completo en un `.html` de 26 KB** que funciona con doble clic,
 sin internet y sin instalar nada.
+
+### 🧰 Guía de instalación de motores
+
+Una vista dedicada (`#/instalar`) que acompaña el salto del navegador a un motor real:
+
+- **Unity** y **Godot** con sus pasos reales, marcables uno a uno y guardados en el navegador
+- Requisitos de hardware honestos (disco, RAM, procesador) para cada opción
+- Tabla comparativa: precio, tamaño, lenguaje, curva de aprendizaje y juegos famosos
+- Tu primer script en **C#** y en **GDScript**, equivalentes al paso 3 del tutorial
+- Seis problemas típicos de la primera instalación con su solución
 
 ### 🧩 Puente a Unity
 
 Un diccionario de traducción web ↔ Unity y **seis scripts C# descargables** listos para `Assets/Scripts`:
 `Movimiento2D`, `Parallax`, `DialogoNPC`, `Pisoton`, `QuestManager` y `SaveSystem`.
 
+Además, el Centro de Descargas genera tres ZIP específicos para Unity 6:
+
+| ZIP | Contenido |
+|-----|-----------|
+| **Crono Jump · Proyecto completo** | Proyecto Unity 6.3 LTS; genera escena, jugador, plataformas, monedas, slimes, meteoritos, checkpoints, HUD, tres niveles y récord |
+| **RPG Pack** | DialogueRunner desde JSON, condiciones, efectos, QuestManager, inventario, SaveSystem y portales |
+| **Production Pack** | Audio por canales, logros, localización, accesibilidad y tres ranuras JSON |
+
+El proyecto completo usa `RuntimeInitializeOnLoadMethod`: abre la escena generada y pulsa **Play**, sin configurar prefabs ni importar imágenes.
+
+### ZIPS para Godot 4
+
+| ZIP | Contenido |
+|-----|-----------|
+| **Crono Jump · Proyecto completo** | Proyecto importable con `project.godot`, escena principal, CharacterBody2D, monedas, slimes, meteoritos, checkpoints, HUD, tres niveles y récord |
+| **Godot RPG Pack** | Diálogo JSON, condiciones, efectos, señales, misiones, inventario, SaveSlots y portales de escena |
+| **Godot Production Pack** | AudioServer por buses, logros, localización, accesibilidad y tres ranuras JSON |
+
+El proyecto no necesita addons ni imágenes externas: importa `CronoJump-Godot/project.godot` en el Project Manager y pulsa **Play**.
+
 ### 📦 Centro de descargas
 
 Los `.zip` se generan **en tu navegador** con el código real que está corriendo la página:
-los motores en TypeScript, los scripts de Unity y las 26 lecciones comentadas por separado.
+los dieciséis motores y generadores en TypeScript, el juego en .html, ocho packs de motor y 73 lecciones comentadas.
+
+### Sistemas de producción incluidos
+
+| Sistema | Ejemplo práctico |
+|---------|------------------|
+| Mezclador de audio | Canales master, música, SFX y UI; diseñador de sonidos WebAudio |
+| Ranuras de guardado | Tres slots reales, exportación/importación y migración v1 → v2 |
+| Logros | Seis logros progresivos y ocultos conectados a eventos del juego |
+| Localización | Español, inglés y portugués con variables, plurales y fallback visible |
+| Accesibilidad | Movimiento reducido, contraste, texto, temblor, flashes, subtítulos y daltonismo |
 
 ---
 
@@ -179,6 +244,15 @@ cronolab/
 │  │  ├─ minis.ts            # plataformas, diálogos y arena de evasión
 │  │  ├─ battle.ts           # combate ATB por turnos
 │  │  ├─ topdown.ts          # mundo RPG con misiones y guardado
+│  │  ├─ mechanics.ts        # 13 micro-demos de game feel
+│  │  ├─ narrative.ts        # grafo de diálogo, condiciones, efectos y validación
+│  │  ├─ debugWorld.ts       # escena instrumentada con hitboxes y breakpoints
+│  │  ├─ production.ts       # audio, ranuras, logros, idiomas y accesibilidad
+│  │  ├─ unityPacks.ts       # genera los proyectos y packs ZIP de Unity
+│  │  ├─ godotPacks.ts       # genera los proyectos y packs ZIP de Godot
+│  │  ├─ advancedSystems.ts  # procedural, controles, crafting, replay y telemetría
+│  │  ├─ combatSystems.ts    # daño, estados, fases, simulación y botín
+│  │  ├─ combatPacks.ts      # packs de combate para Unity y Godot
 │  │  ├─ tutorial.ts         # motor progresivo del tutorial (8 pasos)
 │  │  ├─ standalone.ts       # genera el juego descargable en .html
 │  │  └─ *Snippets.ts        # las lecciones y su código comentado
@@ -203,9 +277,12 @@ Por eso puedes copiar cualquier motor a otro proyecto y funcionará igual.
 2. **Lee** las seis funciones del panel de código
 3. **Pinta** un personaje en el editor de sprites
 4. **Diseña** un nivel y juégalo
-5. **Completa** el tutorial de 8 pasos y descarga tu juego
-6. **Descarga** los packs y ábrelos en tu editor
-7. **Salta a Unity** con el diccionario y los scripts C#
+5. **Compara** las 13 mecánicas con sus interruptores
+6. **Ramifica** una conversación y prueba condiciones narrativas
+7. **Depura** una colisión con pausa y avance de un frame
+8. **Completa** el tutorial de 14 pasos y descarga tu juego
+9. **Descarga** los packs y ábrelos en tu editor
+10. **Instala Unity o Godot** con la guía paso a paso y reconstruye Crono Jump
 
 ---
 

@@ -13,6 +13,12 @@ import {
   Flame,
   HeartCrack,
   Sparkles,
+  Bug,
+  Sparkle,
+  FlagTriangleRight,
+  PauseCircle,
+  Layers3,
+  Trophy,
 } from "lucide-react";
 
 export interface TutorialStep {
@@ -483,6 +489,308 @@ function reiniciar() {
       "R reinicia el nivel por completo",
     ],
     controls: ["← → moverse", "ESPACIO saltar", "R reiniciar"],
-    tip: "Ahora descarga el juego completo en un archivo .html y ábrelo: funciona sin internet y sin instalar nada.",
+    tip: "Este ya es un juego completo. Pero a un juego de verdad todavía le faltan seis sistemas: sigue al paso 9.",
+  },
+  {
+    n: 9,
+    id: "enemigos",
+    icon: Bug,
+    title: "Enemigos y combos",
+    subtitle: "patrullar, pisar y encadenar",
+    goal: "Slimes que patrullan entre dos puntos. Si los pisas rebotas y sumas combo; si los tocas de lado, duelen.",
+    code: `// Un enemigo es un objeto con límites de patrulla.
+const slimes = [
+  { x: 520, vx: 32, min: 470, max: 600, muerto: 0 },
+  { x: 980, vx: -30, min: 920, max: 1060, muerto: 0 },
+];
+
+let combo = 0, comboT = 0;
+
+function actualizar(dt) {
+  for (const s of slimes) {
+    if (s.muerto > 0) { s.muerto -= dt; continue; }
+
+    // 1. PATRULLA: rebota en los extremos invirtiendo la velocidad
+    s.x += s.vx * dt;
+    if (s.x < s.min) { s.x = s.min; s.vx = Math.abs(s.vx); }
+    if (s.x > s.max) { s.x = s.max; s.vx = -Math.abs(s.vx); }
+
+    // 2. ¿CHOCAMOS? la misma caja AABB de siempre
+    const tocando = Math.abs(s.x - heroe.x) < 12 &&
+                    heroe.y > SUELO_Y - 24;
+    if (!tocando) continue;
+
+    // 3. UN SOLO DATO decide si ganas o pierdes: la velocidad vertical
+    if (heroe.vy > 55) {
+      s.muerto = 3;             // reaparece en 3 segundos
+      heroe.vy = -250;          // rebote: te devuelve al aire
+      combo = Math.min(combo + 1, 8);
+      comboT = 2;               // 2 s para encadenar el siguiente
+      puntos += 50 * combo;     // x1, x2, x3...
+    } else {
+      heroe.vx = heroe.x < s.x ? -165 : 165;  // empujón
+      recibirGolpe();
+    }
+  }
+  if (comboT > 0 && (comboT -= dt) <= 0) combo = 0;
+}`,
+    bullets: [
+      "La patrulla no necesita IA: dos límites y una multiplicación por -1. Ese 'rebote' es el movimiento enemigo más usado de la historia.",
+      "Igual que con los meteoritos, es heroe.vy quien decide si el choque es victoria o daño. Un dato, dos reglas opuestas.",
+      "El combo con temporizador premia la agresividad: encadenar enemigos vale mucho más que ir uno a uno. Así se diseña un incentivo.",
+    ],
+    checklist: [
+      "Hay slimes verdes patrullando entre dos puntos",
+      "Al caer sobre uno rebotas y aparece +50, +100, +150…",
+      "Al tocarlos de lado pierdes una vida y sales empujado",
+    ],
+    controls: ["← → moverse", "ESPACIO saltar", "R reiniciar"],
+    tip: "Sube combo pisando dos slimes sin tocar el suelo: el HUD muestra el multiplicador en vivo.",
+  },
+  {
+    n: 10,
+    id: "powerups",
+    icon: Sparkle,
+    title: "Power-ups temporales",
+    subtitle: "escudo e imán con cuenta atrás",
+    goal: "Dos objetos que cambian las reglas durante unos segundos: el escudo absorbe un golpe y el imán atrae las monedas.",
+    code: `let escudoT = 0, imanT = 0;
+
+function recoger(power) {
+  if (power.tipo === "escudo") escudoT = 8;   // 8 segundos
+  else imanT = 7;
+  power.cogido = true;
+  power.respawn = 9;      // vuelve a aparecer: nada se pierde para siempre
+}
+
+function actualizar(dt) {
+  if (escudoT > 0) escudoT -= dt;
+  if (imanT > 0) imanT -= dt;
+
+  // EFECTO 1 — el imán curva la trayectoria de las monedas hacia ti
+  if (imanT > 0) {
+    for (const m of monedas) {
+      const dx = heroe.x - m.x, dy = heroe.y - 10 - m.y;
+      const dist = Math.hypot(dx, dy);
+      if (dist < 90) {              // solo las cercanas
+        m.x += (dx / dist) * 150 * dt;   // vector normalizado × velocidad
+        m.y += (dy / dist) * 150 * dt;
+      }
+    }
+  }
+}
+
+// EFECTO 2 — el escudo intercepta el daño ANTES de restar vida
+function recibirGolpe() {
+  if (escudoT > 0) {
+    escudoT = 0;              // se consume
+    invulnerable = 1;
+    chispas("#5ce1e6");
+    return;                   // ← la vida nunca se toca
+  }
+  vidas--;
+}`,
+    bullets: [
+      "Un power-up no es un objeto especial: es una variable de tiempo que otras funciones consultan. Todo el 'poder' vive en ese número.",
+      "Fíjate dónde se coloca el escudo: al principio de recibirGolpe(). Interceptar el daño antes de restar vida evita duplicar lógica por todo el código.",
+      "Normalizar el vector (dx/dist, dy/dist) hace que el imán atraiga igual de rápido desde cualquier ángulo. Sin eso, las diagonales irían más rápido.",
+    ],
+    checklist: [
+      "Hay un escudo azul y un imán rosa repartidos por el nivel",
+      "Con escudo activo ves un aro y aguantas un golpe sin perder vida",
+      "Con imán activo las monedas vuelan hacia ti",
+      "El aro parpadea en el último segundo y el HUD muestra la cuenta atrás",
+    ],
+    controls: ["← → moverse", "ESPACIO saltar", "R reiniciar"],
+    tip: "Coge el escudo y métete a propósito en un pincho: verás cómo absorbe el golpe en vez de restarte vida.",
+  },
+  {
+    n: 11,
+    id: "checkpoints",
+    icon: FlagTriangleRight,
+    title: "Checkpoints y reaparición",
+    subtitle: "perder sin frustrarse",
+    goal: "Banderas que se activan al pasar y guardan el punto de reaparición. Perder ya no significa empezar de cero.",
+    code: `const checkpoints = [
+  { x: 640, activo: false },
+  { x: 1240, activo: false },
+];
+let puntoDeReaparicion = 60;   // el inicio del nivel
+
+function actualizar(dt) {
+  // 1. ACTIVAR: basta con pasar por delante
+  for (const cp of checkpoints) {
+    if (cp.activo || heroe.x < cp.x) continue;
+    cp.activo = true;
+    puntoDeReaparicion = cp.x;    // ← el estado que importa
+    chispas(cp.x, "#ffd23f");
+    texto("¡CHECKPOINT!");
+  }
+}
+
+// 2. USAR: al morir volvemos al último punto, no al principio
+function recibirGolpe() {
+  vidas--;
+  if (vidas <= 0) return gameOver();
+
+  heroe.x = puntoDeReaparicion;
+  heroe.y = SUELO_Y - 30;      // un poco en el aire: entrada suave
+  heroe.vx = 0; heroe.vy = 0;
+  invulnerable = 1.6;          // margen para orientarse
+}`,
+    bullets: [
+      "Un checkpoint es UNA variable: puntoDeReaparicion. La bandera dorada es solo la forma de comunicar al jugador que ese número cambió.",
+      "Reaparecer con invulnerabilidad extra (1,6 s) evita el bucle cruel de morir una y otra vez en el mismo sitio sin poder reaccionar.",
+      "Elegir dónde poner checkpoints ES diseño de dificultad: muy juntos y el juego aburre; muy lejos y el jugador abandona.",
+    ],
+    checklist: [
+      "Hay postes grises que se vuelven dorados al pasar",
+      "Si pierdes una vida reapareces en el último poste activado",
+      "Aparece el texto '¡CHECKPOINT!' al activarlos",
+    ],
+    controls: ["← → moverse", "ESPACIO saltar", "R reiniciar"],
+    tip: "Activa el segundo checkpoint y déjate golpear: volverás allí mismo, no al principio del nivel.",
+  },
+  {
+    n: 12,
+    id: "pausa",
+    icon: PauseCircle,
+    title: "Menú de pausa",
+    subtitle: "congelar el mundo con una variable",
+    goal: "Pulsar E congela el juego y abre un menú navegable. El bucle sigue dibujando, pero deja de actualizar.",
+    code: `let pausado = false, opcion = 0, latch = false;
+const OPCIONES = ["CONTINUAR", "REINICIAR"];
+
+function actualizar(dt) {
+  // 'latch' evita que mantener la tecla abra y cierre el menú 60 veces/s
+  if (pulsando("E") && !latch) { pausado = !pausado; opcion = 0; }
+  latch = pulsando("E");
+
+  if (pausado) {
+    if (pulsando("←")) opcion = 0;
+    if (pulsando("→")) opcion = 1;
+    if (pulsoSalto) {
+      if (opcion === 1) return reiniciar();
+      pausado = false;
+    }
+    return;        // ← AQUÍ se congela el mundo entero
+  }
+
+  // ...toda la lógica del juego, que ya no se ejecuta en pausa
+}
+
+function dibujar() {
+  dibujarJuego();           // seguimos pintando: la escena queda congelada
+  if (pausado) dibujarMenuDePausa();  // encima
+}`,
+    bullets: [
+      "La pausa es un 'return' temprano en update(). No hay que detener el bucle ni el navegador: simplemente dejas de mover cosas.",
+      "Seguir dibujando en pausa es importante: el jugador ve la escena congelada detrás del menú y entiende que no perdió nada.",
+      "El 'latch' (recordar si la tecla ya estaba pulsada) convierte una tecla mantenida en un único evento. Es el patrón que usarás en todos los menús.",
+    ],
+    checklist: [
+      "Pulsar E abre un menú oscuro con dos opciones",
+      "El mundo se queda completamente congelado detrás",
+      "← → eligen opción y ESPACIO confirma",
+    ],
+    controls: ["← → moverse / elegir", "ESPACIO saltar / confirmar", "E pausar", "R reiniciar"],
+    tip: "Pausa justo cuando un meteorito esté cayendo: verás la escena detenida al milímetro.",
+  },
+  {
+    n: 13,
+    id: "niveles",
+    icon: Layers3,
+    title: "Varios niveles y progresión",
+    subtitle: "la bandera ya no es el final",
+    goal: "Llegar a la meta carga el siguiente nivel conservando la puntuación. Tres niveles encadenados y un final real.",
+    code: `let nivel = 1, transicion = 0;
+const TOTAL_NIVELES = 3;
+
+// Reiniciar el MUNDO sin reiniciar la PARTIDA: esa es la clave
+function cargarNivel(conservarPuntos) {
+  heroe = { x: 60, y: SUELO_Y, vx: 0, vy: 0 };
+  cajas = crearCajas();
+  monedas = crearMonedas();
+  slimes = crearSlimes();
+  meteoros = []; avisos = [];
+  if (!conservarPuntos) puntos = 0;   // ...pero los puntos sobreviven
+}
+
+function actualizar(dt) {
+  if (transicion > 0) {
+    transicion -= dt;
+    if (transicion <= 0) { nivel++; cargarNivel(true); }
+    return;                 // pausa dramática entre niveles
+  }
+
+  if (heroe.x >= META_X) {
+    if (nivel < TOTAL_NIVELES) {
+      transicion = 1.4;     // 1,4 s de celebración
+      puntos += 200;        // bonus por terminar
+    } else {
+      victoria = true;      // ¡el juego entero está completo!
+    }
+  }
+}`,
+    bullets: [
+      "Separar 'reiniciar el mundo' de 'reiniciar la partida' es lo que permite encadenar niveles: unos datos se regeneran y otros (puntos, vidas) persisten.",
+      "La transición de 1,4 segundos no es decorativa: da tiempo a leer el mensaje y evita que el jugador se sienta teletransportado.",
+      "Con esta estructura añadir el nivel 4 es cambiar un número. Así crecen los juegos reales: el contenido se multiplica, el código no.",
+    ],
+    checklist: [
+      "Al llegar a la bandera aparece 'NIVEL 1 COMPLETO' y arranca el 2",
+      "La puntuación NO se reinicia entre niveles (+200 de bonus)",
+      "El HUD muestra el nivel actual (1/3, 2/3, 3/3)",
+      "Solo al terminar el nivel 3 aparece ¡META!",
+    ],
+    controls: ["← → moverse", "ESPACIO saltar", "E pausar", "R reiniciar"],
+    tip: "Fíjate en que los slimes y monedas vuelven a aparecer: el mundo se reconstruye, tu progreso no.",
+  },
+  {
+    n: 14,
+    id: "persistencia",
+    icon: Trophy,
+    title: "Récord guardado y cierre",
+    subtitle: "que tu partida deje huella",
+    goal: "Guardar la mejor puntuación en el navegador para que siga ahí mañana. El último sistema que convierte un prototipo en juego.",
+    code: `const CLAVE = "mi-juego-record";
+
+// localStorage es la base de datos más simple que existe:
+// guarda texto y sobrevive al cerrar el navegador.
+function cargarRecord() {
+  try { return Number(localStorage.getItem(CLAVE)) || 0; }
+  catch { return 0; }      // modo incógnito o permisos denegados
+}
+
+function guardarRecord(valor) {
+  try { localStorage.setItem(CLAVE, String(valor)); }
+  catch { /* no pasa nada: el juego sigue funcionando */ }
+}
+
+let record = cargarRecord();
+
+function alGanar() {
+  victoria = true;
+  if (puntos > record) {
+    record = puntos;
+    guardarRecord(record);       // ← solo escribimos cuando hay mejora
+    texto("¡NUEVO RÉCORD!");
+  }
+}
+
+// ¿Quieres guardar la partida entera? El mismo patrón con un objeto:
+// localStorage.setItem("partida", JSON.stringify({ nivel, puntos, vidas }));`,
+    bullets: [
+      "Envolver localStorage en try/catch no es paranoia: en modo incógnito o con cookies bloqueadas lanza error y tumbaría tu juego entero.",
+      "Guardar solo cuando hay mejora evita escrituras innecesarias. El disco es lento comparado con la memoria: escribe poco y en momentos clave.",
+      "Con JSON.stringify ese mismo mecanismo guarda la partida completa: nivel, puntos, vidas, objetos y posición. Es exactamente lo que hace el RPG de esta web.",
+    ],
+    checklist: [
+      "El HUD muestra un récord que empieza en 0",
+      "Al terminar, si superas la marca aparece '¡NUEVO RÉCORD!'",
+      "Recarga la página: el récord sigue ahí",
+    ],
+    controls: ["← → moverse", "ESPACIO saltar", "E pausar", "R reiniciar"],
+    tip: "Termina una partida, recarga el navegador y vuelve: tu récord te estará esperando. Eso es persistencia.",
   },
 ];

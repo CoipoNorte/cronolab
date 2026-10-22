@@ -137,7 +137,7 @@ export default function Publish() {
       <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-line to-transparent" />
       <div className="relative mx-auto max-w-7xl">
         <SectionHeading
-          index="07"
+          index="13"
           eyebrow="EL PASO QUE NADIE ENSEÑA"
           title="PUBLICA TU JUEGO"
           accent="EN INTERNET, GRATIS"

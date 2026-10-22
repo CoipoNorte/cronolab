@@ -5,12 +5,20 @@ import GameLab from "./components/GameLab";
 import CodePanel from "./components/CodePanel";
 import SpriteEditor from "./components/SpriteEditor";
 import MoreGames from "./components/MoreGames";
+import MechanicsLab from "./components/MechanicsLab";
+import NarrativeStudio from "./components/NarrativeStudio";
+import DebugSection from "./components/DebugSection";
+import ProductionLab from "./components/ProductionLab";
+import AdvancedSystemsLab from "./components/AdvancedSystemsLab";
+import CombatLab from "./components/CombatLab";
 import UnityBridge from "./components/UnityBridge";
 import Downloads from "./components/Downloads";
 import Publish from "./components/Publish";
 import Concepts from "./components/Concepts";
 import Footer from "./components/Footer";
 import TutorialPage from "./components/TutorialPage";
+import SetupGuide from "./components/SetupGuide";
+import CommandPalette from "./components/CommandPalette";
 
 /** Cinta marquee con el vocabulario del tutorial */
 function Marquee() {
@@ -30,6 +38,24 @@ function Marquee() {
     "CÁMARA LERP",
     "LEVEL EDITOR",
     "ATB BATTLE",
+    "COYOTE TIME",
+    "HITSTOP",
+    "OBJECT POOL",
+    "BRANCHING DIALOGUE",
+    "DEBUG DRAW",
+    "POWER-UPS",
+    "CHECKPOINTS",
+    "GODOT READY",
+    "FRAME STEP",
+    "SAVE SLOTS",
+    "LOCALIZATION",
+    "ACCESSIBILITY",
+    "SEEDED WORLDS",
+    "INPUT REMAPPING",
+    "REPLAYS",
+    "DAMAGE FORMULA",
+    "BOSS PHASES",
+    "WEIGHTED LOOT",
     "UNITY READY",
     "DESCARGAS",
   ];
@@ -58,10 +84,19 @@ export default function App() {
     return () => window.removeEventListener("hashchange", onHash);
   }, []);
 
+  /* Al volver desde una vista aparte, el destino aún no existía cuando cambió el hash. */
+  useEffect(() => {
+    if (!route || route.startsWith("#/")) return;
+    const id = route.slice(1);
+    requestAnimationFrame(() => document.getElementById(id)?.scrollIntoView({ behavior: "smooth" }));
+  }, [route]);
+
   if (route.startsWith("#/tutorial")) return <TutorialPage />;
+  if (route.startsWith("#/instalar")) return <SetupGuide />;
 
   return (
     <div className="relative min-h-screen bg-void text-snow antialiased">
+      <CommandPalette />
       <Nav />
       <main>
         <Hero />
@@ -70,6 +105,12 @@ export default function App() {
         <CodePanel />
         <SpriteEditor />
         <MoreGames />
+        <MechanicsLab />
+        <NarrativeStudio />
+        <DebugSection />
+        <ProductionLab />
+        <AdvancedSystemsLab />
+        <CombatLab />
         <UnityBridge />
         <Downloads />
         <Publish />

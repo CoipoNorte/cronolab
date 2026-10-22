@@ -1,5 +1,5 @@
 import { motion } from "framer-motion";
-import { Blocks, ArrowRight, Languages, KeyRound } from "lucide-react";
+import { Blocks, ArrowRight, Languages, KeyRound, Download } from "lucide-react";
 import SectionHeading from "./SectionHeading";
 import CodeCard from "./CodeCard";
 import { UNITY_LESSONS, UNITY_MAP } from "../game/moreSnippets";
@@ -10,7 +10,7 @@ export default function UnityBridge() {
       <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-line to-transparent" />
       <div className="relative mx-auto max-w-7xl">
         <SectionHeading
-          index="05"
+          index="11"
           eyebrow="LA PREGUNTA DEL MILLÓN"
           title="¿Y ESTO EN UNITY?"
           accent="SÍ. MISMAS IDEAS, OTRO ACENTO."
@@ -61,6 +61,37 @@ export default function UnityBridge() {
             </span>
           </p>
         </motion.div>
+
+        {/* acceso a la guía de instalación */}
+        <a
+          href="#/instalar"
+          className="mt-6 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-mint/40 bg-mint/5 p-5 transition-colors hover:border-mint"
+        >
+          <span>
+            <span className="block font-pixel text-[10px] text-mint">¿NO TIENES EL MOTOR INSTALADO?</span>
+            <span className="mt-1.5 block text-sm text-mist">
+              Guía paso a paso para descargar Unity o Godot, con requisitos reales y los errores típicos de la primera vez.
+            </span>
+          </span>
+          <span className="arcade-btn flex items-center gap-2 rounded-md bg-mint px-5 py-3 font-pixel text-[9px] text-black">
+            ABRIR LA GUÍA <ArrowRight className="h-3.5 w-3.5" />
+          </span>
+        </a>
+
+        <a
+          href="#unity-zips"
+          className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-viol/40 bg-viol/5 p-5 transition-colors hover:border-viol"
+        >
+          <span>
+            <span className="block font-pixel text-[10px] text-viol">TRES ZIPS DE UNITY LISTOS</span>
+            <span className="mt-1.5 block text-sm text-mist">
+              Proyecto completo de Crono Jump, pack RPG y pack de producción. Todos incluyen README y código C# editable.
+            </span>
+          </span>
+          <span className="arcade-btn flex items-center gap-2 rounded-md bg-viol px-5 py-3 font-pixel text-[9px] text-white">
+            <Download className="h-3.5 w-3.5" /> DESCARGAR PACKS
+          </span>
+        </a>
 
         {/* scripts C# */}
         <div className="mt-6 grid gap-5 lg:grid-cols-2">

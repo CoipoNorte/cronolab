@@ -8,7 +8,10 @@
    ============================================================ */
 
 import type { Hud, Mini, MiniInput } from "./minis";
-import { drawPixels, heroSprite, HERO_PALETTE, HERO_W, HERO_H } from "./sprites";
+import {
+  drawPixels, heroSprite, HERO_PALETTE, HERO_W, HERO_H,
+  SLIME_A, SLIME_B, SLIME_W, SLIME_H, SLIME_PALETTE,
+} from "./sprites";
 import { sfx } from "./engine";
 
 export const VW = 480;
@@ -28,6 +31,12 @@ export interface Features {
   meteors: boolean;
   damage: boolean;
   polish: boolean;
+  enemies: boolean;
+  powerups: boolean;
+  checkpoints: boolean;
+  pause: boolean;
+  levels: boolean;
+  persistence: boolean;
 }
 
 export function featuresForStep(step: number): Features {
@@ -39,8 +48,17 @@ export function featuresForStep(step: number): Features {
     meteors: step >= 6,
     damage: step >= 7,
     polish: step >= 8,
+    enemies: step >= 9,
+    powerups: step >= 10,
+    checkpoints: step >= 11,
+    pause: step >= 12,
+    levels: step >= 13,
+    persistence: step >= 14,
   };
 }
+
+export const TOTAL_STEPS = 14;
+const BEST_KEY = "cronolab-cronojump-record";
 
 /* ---------- tipos del mundo ---------- */
 interface Box { x: number; y: number; w: number; h: number; kind: "bloque" | "pincho" }
@@ -48,6 +66,9 @@ interface Coin { x: number; y: number; taken: boolean; ph: number }
 interface Meteor { x: number; y: number; vy: number }
 interface Warning { x: number; t: number }
 interface Part { x: number; y: number; vx: number; vy: number; life: number; max: number; color: string; size: number; text?: string }
+interface Walker { x: number; y: number; vx: number; min: number; max: number; dead: number; anim: number }
+interface PowerUp { x: number; y: number; kind: "escudo" | "iman"; taken: boolean; respawn: number }
+interface Checkpoint { x: number; active: boolean }
 
 const clamp = (v: number, a: number, b: number) => Math.max(a, Math.min(b, v));
 const hash = (i: number) => { const s = Math.sin(i * 127.1 + 311.7) * 43758.5453; return s - Math.floor(s); };
@@ -80,6 +101,34 @@ function buildCoins(): Coin[] {
   return c;
 }
 
+function buildWalkers(): Walker[] {
+  return [
+    { x: 520, y: GY, vx: 32, min: 470, max: 600, dead: 0, anim: 0 },
+    { x: 980, y: GY, vx: -30, min: 920, max: 1060, dead: 0, anim: 1 },
+    { x: 1450, y: GY, vx: 34, min: 1400, max: 1530, dead: 0, anim: 2 },
+  ];
+}
+
+function buildPowerUps(): PowerUp[] {
+  return [
+    { x: 560, y: GY - 96, kind: "escudo", taken: false, respawn: 0 },
+    { x: 1120, y: GY - 24, kind: "iman", taken: false, respawn: 0 },
+    { x: 1620, y: GY - 96, kind: "escudo", taken: false, respawn: 0 },
+  ];
+}
+
+function buildCheckpoints(): Checkpoint[] {
+  return [{ x: 640, active: false }, { x: 1240, active: false }];
+}
+
+function loadBest(): number {
+  try { return Number(localStorage.getItem(BEST_KEY)) || 0; } catch { return 0; }
+}
+
+function saveBest(value: number) {
+  try { localStorage.setItem(BEST_KEY, String(value)); } catch { /* sin almacenamiento */ }
+}
+
 export function createTutorialGame(step: number): Mini {
   const F = featuresForStep(step);
 
@@ -95,12 +144,33 @@ export function createTutorialGame(step: number): Mini {
   let spawnT = 1.6;
   let jumpBuf = 0;
 
-  const reset = () => {
+  /* sistemas de los pasos 9-14 */
+  let walkers = buildWalkers();
+  let powerups = buildPowerUps();
+  let checkpoints = buildCheckpoints();
+  let shieldT = 0, magnetT = 0;
+  let spawnX = 60;
+  let paused = false, pauseLatch = false, pauseSel = 0;
+  let level = 1, levelClear = 0, levelT = 0;
+  let best = F.persistence ? loadBest() : 0;
+  let combo = 0, comboT = 0;
+
+  const startLevel = (keepScore: boolean) => {
     hero = { x: 60, y: GY, vx: 0, vy: 0, face: 1, onGround: true, animT: 0, moving: false };
-    camX = 0; t = 0; score = 0; lives = 3; invT = 0; shake = 0;
-    won = false; over = false;
+    camX = 0; invT = 0; shake = 0; won = false;
     boxes = buildBoxes(); coins = buildCoins();
-    meteors = []; warns = []; parts = []; spawnT = 1.6; jumpBuf = 0;
+    meteors = []; warns = []; spawnT = 1.6; jumpBuf = 0;
+    walkers = buildWalkers(); powerups = buildPowerUps(); checkpoints = buildCheckpoints();
+    shieldT = 0; magnetT = 0; spawnX = 60; combo = 0; comboT = 0;
+    levelT = 0;                      // la dificultad arranca de cero en cada nivel
+    if (!keepScore) score = 0;
+  };
+
+  const reset = () => {
+    t = 0; score = 0; lives = 3; over = false;
+    paused = false; pauseSel = 0; level = 1; levelClear = 0;
+    parts = [];
+    startLevel(false);
   };
 
   const burst = (x: number, y: number, colors: string[], n: number, pow = 70) => {
@@ -118,14 +188,30 @@ export function createTutorialGame(step: number): Mini {
 
   const hurt = () => {
     if (invT > 0 || !F.damage) return;
+    /* PASO 10: el escudo absorbe un golpe en vez de restar vida */
+    if (F.powerups && shieldT > 0) {
+      shieldT = 0;
+      invT = 1;
+      burst(hero.x, hero.y - 10, ["#5ce1e6", "#ffffff"], 16, 90);
+      floatText(hero.x, hero.y - 28, "¡ESCUDO!", "#5ce1e6");
+      sfx.stomp();
+      return;
+    }
     lives--;
     invT = 1.4;
     shake = 7;
+    combo = 0;
     hero.vy = -170;
     hero.onGround = false;
     burst(hero.x, hero.y - 10, ["#ff5d73", "#ffffff"], 12, 80);
     sfx.hurt();
-    if (lives <= 0) { over = true; sfx.hurt(); }
+    if (lives <= 0) { over = true; sfx.hurt(); return; }
+    /* PASO 11: reaparecer en el último checkpoint en vez de perder todo */
+    if (F.checkpoints) {
+      hero.x = spawnX; hero.y = GY - 30; hero.vx = 0; hero.vy = 0;
+      invT = 1.6;
+      floatText(spawnX, GY - 50, "checkpoint", "#ffd23f");
+    }
   };
 
   /* ---------- colisión AABB contra la lista de cajas ---------- */
@@ -138,9 +224,42 @@ export function createTutorialGame(step: number): Mini {
   return {
     update(dt: number, inp: MiniInput) {
       if (inp.reset) { reset(); return; }
+
+      /* ---------- PASO 12: menú de pausa ---------- */
+      if (F.pause) {
+        if (inp.interact && !pauseLatch) {
+          paused = !paused;
+          pauseSel = 0;
+          sfx.jump();
+        }
+        pauseLatch = inp.interact;
+        if (paused) {
+          // dentro del menú solo navegan las flechas: el mundo está congelado
+          if (inp.left) pauseSel = 0;
+          if (inp.right) pauseSel = 1;
+          if (inp.jump) {
+            if (pauseSel === 1) { reset(); return; }
+            paused = false;
+          }
+          return;
+        }
+      }
+
       t += dt;
+      levelT += dt;
       if (shake > 0) shake = Math.max(0, shake - dt * 14);
       if (invT > 0) invT -= dt;
+      if (shieldT > 0) shieldT -= dt;
+      if (magnetT > 0) magnetT -= dt;
+      if (comboT > 0) { comboT -= dt; if (comboT <= 0) combo = 0; }
+      if (levelClear > 0) {
+        levelClear -= dt;
+        if (levelClear <= 0) {
+          level++;
+          if (lives < 3) lives++;    // un respiro antes del siguiente nivel
+          startLevel(true);
+        }
+      }
 
       /* partículas (siempre que existan) */
       for (const p of parts) {
@@ -216,7 +335,17 @@ export function createTutorialGame(step: number): Mini {
         if (F.coins) {
           for (const c of coins) {
             if (c.taken) continue;
-            const cy = c.y + Math.sin(t * 2.2 + c.ph) * 2;
+            let cy = c.y + Math.sin(t * 2.2 + c.ph) * 2;
+            /* PASO 10: el imán atrae las monedas cercanas */
+            if (F.powerups && magnetT > 0) {
+              const dx = hero.x - c.x, dy = (hero.y - 10) - cy;
+              const dist = Math.hypot(dx, dy);
+              if (dist < 90) {
+                c.x += (dx / dist) * 150 * dt;
+                c.y += (dy / dist) * 150 * dt;
+                cy = c.y;
+              }
+            }
             if (Math.abs(c.x - hero.x) < 11 && cy > hero.y - 22 && cy < hero.y + 6) {
               c.taken = true;
               score += 10;
@@ -227,11 +356,86 @@ export function createTutorialGame(step: number): Mini {
           }
         }
 
+        /* ---------- PASO 9: enemigos que patrullan ---------- */
+        if (F.enemies) {
+          for (const w of walkers) {
+            if (w.dead > 0) { w.dead -= dt; continue; }
+            w.x += w.vx * dt;
+            w.anim += dt;
+            if (w.x < w.min) { w.x = w.min; w.vx = Math.abs(w.vx); }
+            if (w.x > w.max) { w.x = w.max; w.vx = -Math.abs(w.vx); }
+
+            const tocando = Math.abs(w.x - hero.x) < 12 && hero.y > GY - 24 && hero.y - HERO_H < GY;
+            if (!tocando) continue;
+            const pisando = hero.vy > 55 && hero.y < GY - 6;
+            if (pisando) {
+              /* pisotón: rebote + combo que multiplica los puntos */
+              w.dead = 3;
+              hero.vy = -250;
+              hero.onGround = false;
+              combo = Math.min(combo + 1, 8);
+              comboT = 2;
+              const premio = 50 * combo;
+              score += premio;
+              burst(w.x, GY - 8, ["#58c94f", "#bff5b0"], 14, 85);
+              floatText(w.x, GY - 26, `+${premio}${combo > 1 ? ` x${combo}` : ""}`, "#4ade80");
+              sfx.stomp();
+            } else {
+              const away = hero.x < w.x ? -1 : 1;
+              hero.vx = 165 * away;
+              hurt();
+            }
+          }
+        }
+
+        /* ---------- PASO 10: power-ups con temporizador ---------- */
+        if (F.powerups) {
+          for (const p of powerups) {
+            if (p.taken) {
+              p.respawn -= dt;
+              if (p.respawn <= 0) p.taken = false;
+              continue;
+            }
+            const py = p.y + Math.sin(t * 3 + p.x) * 2;
+            if (Math.abs(p.x - hero.x) < 13 && py > hero.y - 26 && py < hero.y + 8) {
+              p.taken = true;
+              p.respawn = 9;
+              if (p.kind === "escudo") { shieldT = 8; floatText(p.x, py - 10, "ESCUDO 8s", "#5ce1e6"); }
+              else { magnetT = 7; floatText(p.x, py - 10, "IMÁN 7s", "#ff7ad9"); }
+              burst(p.x, py, p.kind === "escudo" ? ["#5ce1e6", "#ffffff"] : ["#ff7ad9", "#ffffff"], 14, 70);
+              sfx.coin();
+            }
+          }
+        }
+
+        /* ---------- PASO 11: checkpoints ---------- */
+        if (F.checkpoints) {
+          for (const cp of checkpoints) {
+            if (cp.active || hero.x < cp.x) continue;
+            cp.active = true;
+            spawnX = cp.x;
+            burst(cp.x, GY - 30, ["#ffd23f", "#ffffff"], 18, 80);
+            floatText(cp.x, GY - 56, "¡CHECKPOINT!", "#ffd23f");
+            sfx.coin();
+          }
+        }
+
         /* meta */
-        if (hero.x >= FLAG_X) {
-          won = true;
-          burst(FLAG_X, GY - 40, ["#ffd23f", "#4ade80", "#7c6bff"], 46, 130);
-          sfx.win();
+        if (hero.x >= FLAG_X && levelClear <= 0) {
+          /* PASO 13: la bandera lleva al siguiente nivel en vez de terminar */
+          if (F.levels && level < 3) {
+            levelClear = 1.4;
+            score += 200;
+            burst(FLAG_X, GY - 40, ["#ffd23f", "#4ade80", "#7c6bff"], 46, 130);
+            floatText(FLAG_X, GY - 70, `NIVEL ${level} COMPLETO`, "#4ade80");
+            sfx.win();
+          } else {
+            won = true;
+            /* PASO 14: guardar el récord entre sesiones */
+            if (F.persistence && score > best) { best = score; saveBest(best); }
+            burst(FLAG_X, GY - 40, ["#ffd23f", "#4ade80", "#7c6bff"], 46, 130);
+            sfx.win();
+          }
         }
       }
 
@@ -242,7 +446,7 @@ export function createTutorialGame(step: number): Mini {
           // aparecen cerca del jugador, con AVISO previo (telegrafiado)
           const wx = clamp(hero.x + (Math.random() * 300 - 120), 30, WORLD - 30);
           warns.push({ x: wx, t: 0.85 });
-          spawnT = Math.max(0.55, 1.7 - t * 0.012);
+          spawnT = Math.max(0.7, 1.7 - levelT * 0.012);
         }
         for (const w of warns) w.t -= dt;
         for (const w of warns) {
@@ -419,12 +623,81 @@ export function createTutorialGame(step: number): Mini {
         }
       }
 
+      /* ---------- PASO 11: banderas de checkpoint ---------- */
+      if (F.checkpoints) {
+        for (const cp of checkpoints) {
+          const cx = cp.x - camX;
+          if (cx < -30 || cx > VW + 30) continue;
+          ctx.fillStyle = "#6d7683";
+          ctx.fillRect(cx, GY - 34, 2, 34);
+          ctx.fillStyle = cp.active ? "#ffd23f" : "#51486d";
+          const wv = cp.active ? Math.round(Math.sin(t * 6) * 1.5) : 0;
+          ctx.fillRect(cx + 2, GY - 33 + wv, 11, 8);
+          if (cp.active) { ctx.fillStyle = "#fff3a3"; ctx.fillRect(cx + 4, GY - 31 + wv, 3, 3); }
+        }
+      }
+
+      /* ---------- PASO 9: enemigos ---------- */
+      if (F.enemies) {
+        for (const w of walkers) {
+          const wx = w.x - camX;
+          if (wx < -30 || wx > VW + 30) continue;
+          if (w.dead > 0) {
+            ctx.globalAlpha = Math.max(0, w.dead / 3);
+            ctx.fillStyle = "#3f9e3c";
+            ctx.fillRect(wx - 8, GY - 3, 16, 3);
+            ctx.globalAlpha = 1;
+            continue;
+          }
+          ctx.fillStyle = "rgba(20,50,20,0.22)";
+          ctx.fillRect(wx - 7, GY + 2, 14, 2);
+          drawPixels(ctx, Math.sin(w.anim * 7) > 0 ? SLIME_A : SLIME_B, Math.round(wx - SLIME_W / 2), GY - SLIME_H, SLIME_PALETTE, w.vx > 0);
+        }
+      }
+
+      /* ---------- PASO 10: power-ups ---------- */
+      if (F.powerups) {
+        for (const p of powerups) {
+          if (p.taken) continue;
+          const px = p.x - camX;
+          if (px < -20 || px > VW + 20) continue;
+          const py = p.y + Math.sin(t * 3 + p.x) * 2;
+          ctx.fillStyle = p.kind === "escudo" ? "rgba(92,225,230,.22)" : "rgba(255,122,217,.22)";
+          ctx.fillRect(px - 10, py - 10, 20, 20);
+          if (p.kind === "escudo") {
+            ctx.fillStyle = "#5ce1e6";
+            ctx.fillRect(px - 6, py - 7, 12, 10);
+            ctx.fillRect(px - 4, py + 3, 8, 4);
+            ctx.fillStyle = "#ffffff"; ctx.fillRect(px - 2, py - 4, 4, 4);
+          } else {
+            ctx.fillStyle = "#ff7ad9";
+            ctx.fillRect(px - 7, py - 7, 5, 11);
+            ctx.fillRect(px + 2, py - 7, 5, 11);
+            ctx.fillRect(px - 7, py - 7, 14, 4);
+            ctx.fillStyle = "#ffffff";
+            ctx.fillRect(px - 7, py + 2, 5, 3); ctx.fillRect(px + 2, py + 2, 5, 3);
+          }
+        }
+      }
+
       /* ---------- PASO 2: el héroe ---------- */
       if (F.hero) {
         const hx = Math.round(hero.x - camX);
         const hy = Math.round(hero.y);
         ctx.fillStyle = "rgba(20,50,20,0.26)";
         ctx.fillRect(hx - 7, GY + 2, 14, 2);
+        /* aura del escudo activo, parpadeando al expirar */
+        if (F.powerups && shieldT > 0 && (shieldT > 1.5 || Math.floor(t * 12) % 2 === 0)) {
+          ctx.strokeStyle = "#5ce1e6";
+          ctx.lineWidth = 1;
+          ctx.beginPath(); ctx.arc(hx, hy - 9, 15, 0, Math.PI * 2); ctx.stroke();
+        }
+        if (F.powerups && magnetT > 0) {
+          ctx.globalAlpha = 0.35;
+          ctx.strokeStyle = "#ff7ad9";
+          ctx.beginPath(); ctx.arc(hx, hy - 9, 26 + Math.sin(t * 8) * 3, 0, Math.PI * 2); ctx.stroke();
+          ctx.globalAlpha = 1;
+        }
         if (!(F.damage && invT > 0 && Math.floor(t * 14) % 2 === 0)) {
           let st: "idle" | "runA" | "runB" | "jump" = "idle";
           if (F.jump && !hero.onGround) st = "jump";
@@ -458,6 +731,41 @@ export function createTutorialGame(step: number): Mini {
         ctx.fillText("el bucle ya dibuja 60 veces/s", VW / 2, 144);
       }
 
+      /* ---------- PASO 13: aviso de nivel superado ---------- */
+      if (levelClear > 0) {
+        ctx.fillStyle = "rgba(7,9,18,0.55)";
+        ctx.fillRect(0, VH / 2 - 26, VW, 52);
+        ctx.textAlign = "center";
+        ctx.fillStyle = "#4ade80";
+        ctx.font = '12px "Press Start 2P", monospace';
+        ctx.fillText(`NIVEL ${level} COMPLETO`, VW / 2, VH / 2 - 2);
+        ctx.fillStyle = "#e9ecff";
+        ctx.font = '8px "Press Start 2P", monospace';
+        ctx.fillText(`preparando nivel ${level + 1}…`, VW / 2, VH / 2 + 18);
+      }
+
+      /* ---------- PASO 12: menú de pausa ---------- */
+      if (F.pause && paused) {
+        ctx.fillStyle = "rgba(7,9,18,0.78)";
+        ctx.fillRect(0, 0, VW, VH);
+        ctx.strokeStyle = "#7c6bff";
+        ctx.lineWidth = 2;
+        ctx.strokeRect(VW / 2 - 92, VH / 2 - 52, 184, 104);
+        ctx.textAlign = "center";
+        ctx.fillStyle = "#ffd23f";
+        ctx.font = '12px "Press Start 2P", monospace';
+        ctx.fillText("PAUSA", VW / 2, VH / 2 - 26);
+        const opciones = ["CONTINUAR", "REINICIAR"];
+        opciones.forEach((op, i) => {
+          ctx.fillStyle = pauseSel === i ? "#ffd23f" : "#8b93c9";
+          ctx.font = '9px "Press Start 2P", monospace';
+          ctx.fillText((pauseSel === i ? "> " : "  ") + op, VW / 2, VH / 2 + 2 + i * 18);
+        });
+        ctx.fillStyle = "#8b93c9";
+        ctx.font = '7px "Press Start 2P", monospace';
+        ctx.fillText("← → elegir · espacio confirmar · E cerrar", VW / 2, VH / 2 + 44);
+      }
+
       /* ---------- finales ---------- */
       if (won || over) {
         ctx.fillStyle = "rgba(7,9,18,0.6)";
@@ -465,12 +773,16 @@ export function createTutorialGame(step: number): Mini {
         ctx.textAlign = "center";
         ctx.fillStyle = won ? "#4ade80" : "#ff5d73";
         ctx.font = '14px "Press Start 2P", monospace';
-        ctx.fillText(won ? "¡META!" : "GAME OVER", VW / 2, VH / 2 - 10);
+        ctx.fillText(won ? "¡META!" : "GAME OVER", VW / 2, VH / 2 - 18);
         ctx.fillStyle = "#ffd23f";
         ctx.font = '8px "Press Start 2P", monospace';
-        ctx.fillText(`puntos: ${score}`, VW / 2, VH / 2 + 14);
+        ctx.fillText(`puntos: ${score}`, VW / 2, VH / 2 + 6);
+        if (F.persistence) {
+          ctx.fillStyle = score >= best && score > 0 ? "#4ade80" : "#8b93c9";
+          ctx.fillText(score >= best && score > 0 ? `¡NUEVO RÉCORD! ${best}` : `récord: ${best}`, VW / 2, VH / 2 + 24);
+        }
         ctx.fillStyle = "#e9ecff";
-        ctx.fillText("pulsa R para reintentar", VW / 2, VH / 2 + 34);
+        ctx.fillText("pulsa R para reintentar", VW / 2, VH / 2 + (F.persistence ? 44 : 28));
       }
 
       ctx.restore();
@@ -481,7 +793,11 @@ export function createTutorialGame(step: number): Mini {
       if (F.coins) h.puntos = score;
       if (F.damage) h.vidas = lives;
       if (F.meteors) h.meteoros = meteors.length + warns.length;
-      h.estado = over ? "game over" : won ? "¡victoria!" : F.hero ? "jugando" : "solo dibujo";
+      if (F.enemies) h.combo = combo > 1 ? `x${combo}` : "—";
+      if (F.powerups) h.poder = shieldT > 0 ? `escudo ${shieldT.toFixed(1)}s` : magnetT > 0 ? `imán ${magnetT.toFixed(1)}s` : "—";
+      if (F.levels) h.nivel = `${level}/3`;
+      if (F.persistence) h.récord = best;
+      h.estado = over ? "game over" : won ? "¡victoria!" : paused ? "pausa" : F.hero ? "jugando" : "solo dibujo";
       return h;
     },
   };

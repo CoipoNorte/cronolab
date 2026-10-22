@@ -21,6 +21,8 @@ import {
   Activity,
   Rocket,
   ListChecks,
+  Sparkles,
+  Layers3,
 } from "lucide-react";
 import MiniFrame from "./MiniFrame";
 import { createTutorialGame } from "../game/tutorial";
@@ -129,7 +131,7 @@ export default function TutorialPage() {
         <div className="relative mx-auto max-w-7xl">
           <span className="inline-flex items-center gap-2 rounded-full border border-mint/40 bg-mint/10 px-4 py-1.5">
             <Rocket className="h-3.5 w-3.5 text-mint" />
-            <span className="font-pixel2 text-xs tracking-wide text-mint">PROYECTO GUIADO · 8 PASOS</span>
+            <span className="font-pixel2 text-xs tracking-wide text-mint">PROYECTO GUIADO · 14 PASOS</span>
           </span>
           <h1 className="mt-5 font-pixel text-[clamp(1.2rem,3.6vw,2.4rem)] leading-[1.5] text-snow">
             CRONO <span className="text-gold">JUMP</span>
@@ -159,7 +161,7 @@ export default function TutorialPage() {
           <div className="lg:sticky lg:top-24">
             <h2 className="mb-3 flex items-center gap-2 font-pixel text-[9px] text-mist">
               <ListChecks className="h-4 w-4 text-cyanx" />
-              LOS 8 PASOS
+              LOS 14 PASOS
             </h2>
             <ol className="flex gap-2 overflow-x-auto pb-2 lg:flex-col lg:overflow-visible lg:pb-0">
               {TUTORIAL_STEPS.map((s) => {
@@ -263,6 +265,15 @@ export default function TutorialPage() {
                       <span className="flex gap-1.5">
                         {h.meteoros !== undefined && (
                           <Chip icon={Flame} label="meteoros" value={String(h.meteoros)} color="#ff7847" />
+                        )}
+                        {h.combo !== undefined && (
+                          <Chip icon={Trophy} label="combo" value={String(h.combo)} color="#4ade80" />
+                        )}
+                        {h.poder !== undefined && (
+                          <Chip icon={Sparkles} label="poder" value={String(h.poder)} color="#5ce1e6" />
+                        )}
+                        {h.nivel !== undefined && (
+                          <Chip icon={Layers3} label="nivel" value={String(h.nivel)} color="#7c6bff" />
                         )}
                         <Chip icon={Activity} label="estado" value={String(h.estado ?? "—")} color={hudColor[0]} />
                       </span>
@@ -396,7 +407,7 @@ export default function TutorialPage() {
             <div className="mt-6">
               <MiniFrame
                 key="tut-final"
-                make={useCallback((): Mini => createTutorialGame(8), [])}
+                make={useCallback((): Mini => createTutorialGame(14), [])}
                 title="CRONO_JUMP // JUEGO COMPLETO"
                 accent="#ffd23f"
                 hints={["← → / A D moverse", "ESPACIO saltar", "R reiniciar"]}
@@ -405,8 +416,12 @@ export default function TutorialPage() {
                     <span className="flex gap-1.5">
                       <Chip icon={Coins} label="puntos" value={String(h.puntos ?? 0)} color="#ffd23f" />
                       <Chip icon={Heart} label="vidas" value={String(h.vidas ?? 3)} color="#ff5d73" />
+                      <Chip icon={Layers3} label="nivel" value={String(h.nivel ?? "1/3")} color="#7c6bff" />
                     </span>
-                    <Chip icon={Activity} label="estado" value={String(h.estado ?? "—")} color="#5ce1e6" />
+                    <span className="flex gap-1.5">
+                      <Chip icon={Trophy} label="récord" value={String(h.récord ?? 0)} color="#4ade80" />
+                      <Chip icon={Activity} label="estado" value={String(h.estado ?? "—")} color="#5ce1e6" />
+                    </span>
                   </>
                 )}
               />
@@ -429,6 +444,44 @@ export default function TutorialPage() {
               </button>
             </div>
 
+            <a
+              href="#produccion"
+              className="mt-6 block rounded-2xl border border-cyanx/35 bg-cyanx/5 p-5 transition-colors hover:border-cyanx"
+            >
+              <span className="flex flex-wrap items-center justify-between gap-3">
+                <span>
+                  <span className="block font-pixel text-[10px] text-cyanx">BONUS · CONVIÉRTELO EN UN JUEGO PUBLICABLE</span>
+                  <span className="mt-1.5 block max-w-3xl text-sm leading-relaxed text-mist">
+                    El paso 14 termina la partida, pero producción continúa: mezcla el audio por canales, crea tres ranuras,
+                    conecta logros, traduce la interfaz y añade opciones de accesibilidad.
+                  </span>
+                </span>
+                <span className="arcade-btn flex items-center gap-2 rounded-md bg-cyanx px-5 py-3 font-pixel text-[9px] text-black">
+                  ABRIR SISTEMAS DE PRODUCCIÓN <ArrowRight className="h-3.5 w-3.5" />
+                </span>
+              </span>
+              <span className="mt-4 grid gap-2 sm:grid-cols-5">
+                {["mezclador", "3 saves", "6 logros", "3 idiomas", "accesibilidad"].map((item) => (
+                  <span key={item} className="rounded-lg border border-line bg-void/50 px-3 py-2 text-center font-pixel2 text-[11px] text-snow">{item}</span>
+                ))}
+              </span>
+            </a>
+
+            <a
+              href="#/instalar"
+              className="mt-6 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-viol/40 bg-viol/5 p-5 transition-colors hover:border-viol"
+            >
+              <span>
+                <span className="block font-pixel text-[10px] text-viol">¿Y AHORA QUÉ?</span>
+                <span className="mt-1.5 block text-sm text-mist">
+                  Lleva estos 14 sistemas a un motor real: guía de instalación de Unity y Godot, paso a paso.
+                </span>
+              </span>
+              <span className="arcade-btn flex items-center gap-2 rounded-md bg-viol px-5 py-3 font-pixel text-[9px] text-white">
+                INSTALAR UN MOTOR <ArrowRight className="h-3.5 w-3.5" />
+              </span>
+            </a>
+
             <div className="mt-6 grid gap-3 sm:grid-cols-3">
               {[
                 ["Haz el nivel tuyo", "Edita el array de cajas y monedas: cada número es una decisión de diseño."],
@@ -447,7 +500,7 @@ export default function TutorialPage() {
 
       <footer className="border-t border-line bg-ink px-4 py-10 text-center sm:px-6">
         <p className="font-pixel2 text-sm text-mist">
-          ¿Terminaste los 8 pasos? Ya programaste un videojuego completo.
+          ¿Terminaste los 14 pasos? Ya programaste un videojuego completo.
         </p>
         <a
           href="#top"

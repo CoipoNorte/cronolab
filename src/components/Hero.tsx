@@ -190,8 +190,8 @@ export default function Hero() {
       <div className="absolute inset-x-0 bottom-0 z-10 border-t border-line/60 bg-void/70 backdrop-blur-md">
         <div className="mx-auto flex max-w-7xl items-center justify-between gap-4 overflow-x-auto px-4 py-3 sm:px-6">
           {[
-            ["7", "juegos en una web"],
-            ["26", "lecciones descargables"],
+            ["8", "juegos en una web"],
+            ["73", "lecciones descargables"],
             ["60", "fotogramas / segundo"],
             ["0", "instalaciones previas"],
           ].map(([n, label]) => (

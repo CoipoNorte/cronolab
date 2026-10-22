@@ -90,7 +90,7 @@ export default function Concepts() {
       <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-line to-transparent" />
       <div className="relative mx-auto max-w-7xl">
         <SectionHeading
-          index="08"
+          index="14"
           eyebrow="VOCABULARIO DE PIRATA"
           title="SEIS IDEAS QUE USARÁS"
           accent="EN TODOS LOS JUEGOS"
